@@ -6,6 +6,7 @@ from torch.nn import TransformerEncoder, TransformerEncoderLayer
 from torch.nn.utils.rnn import PackedSequence, pad_packed_sequence
 
 USE_CUDA = torch.cuda.is_available()
+device = 'cuda' if USE_CUDA else 'cpu'
 
 pi = math.pi
 

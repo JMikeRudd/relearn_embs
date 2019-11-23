@@ -12,7 +12,7 @@ USE_CUDA= torch.cuda.is_available()
 class fastTextWrapper():
 
     def __init__(self, fasttext_model, vectors, max_vocab=-1):
-        self.fasttext_model = fasttext_model
+        # self.fasttext_model = fasttext_model
         self.om = torch.FloatTensor(fasttext_model.get_output_matrix())
         self.vocab = vectors
         self.vectors = vectors.vectors
@@ -45,14 +45,19 @@ class fastTextWrapper():
         energies = vec.matmul(self.om.transpose(0,1))
         return self.expit(energies)
 
-    def kld(self, o1, o2):
-        XE = -((o1 * o2.log()).mean(dim=1) + ((1 - o1) * (1 - o2).log()).mean(dim=1))
-        SE = -((o1 * o1.log()).mean(dim=1) + ((1 - o1) * (1 - o1).log()).mean(dim=1))
+    def kld(self, o1, o2, weights=None):
+        if weights is None:
+            XE = -((o1 * o2.log()).mean(dim=1) + ((1 - o1) * (1 - o2).log()).mean(dim=1))
+            SE = -((o1 * o1.log()).mean(dim=1) + ((1 - o1) * (1 - o1).log()).mean(dim=1))
+        else:
+            XE = (-((o1 * o2.log()) + ((1 - o1) * (1 - o2).log())) * weights).sum(dim=1)
+            SE = (-((o1 * o1.log()) + ((1 - o1) * (1 - o1).log())) * weights).sum(dim=1)
         return XE - SE
 
-    def jsd(self, o1, o2):
+    def jsd(self, o1, o2, weights=None):
         o12 = 0.5 * (o1 + o2)
-        return 0.5 * (self.kld(o1, o12) + self.kld(o2, o12))
+        return 0.5 * (self.kld(o1, o12, weights=weights) +
+                      self.kld(o2, o12, weights=weights))
 
     def expit(self, x):
         return 1 / (1 + (-x).exp())
@@ -166,7 +171,7 @@ def evaluate_uwt(s2t_mapping, t2s_mapping, s2t_pairs, t2s_pairs, src_vecs, tgt_v
     top1_s2t, top5_s2t, skipped_s2t = _eval(s2t_pairs, src_vecs, tgt_vecs, s2t_mapping, modes, N=N_s2t)
     top1_t2s, top5_t2s, skipped_t2s = _eval(t2s_pairs, tgt_vecs, src_vecs, t2s_mapping, modes, N=N_t2s)
 
-    print('Total skipped (S2T): {}'.format(skipped_s2t))
+    #print('Total skipped (S2T): {}'.format(skipped_s2t))
 
     return top1_s2t, top1_t2s, top5_s2t, top5_t2s
 
@@ -250,7 +255,7 @@ def _eval(pairs, src_vecs, tgt_vecs, s2t_mapping, modes, N):
         top1[mode]["score"] = top1[mode]["indices"].mean()
         top5[mode]["score"] = top5[mode]["indices"].mean()
 
-    print('Unique frac: {}\nMany frac: {}'.format((unique_num / unique_denom), (many_num / many_denom)))
+    # print('Unique frac: {}\nMany frac: {}'.format((unique_num / unique_denom), (many_num / many_denom)))
 
     return top1, top5, skipped
 

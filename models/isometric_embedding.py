@@ -76,6 +76,9 @@ def train_isometric_embedding_epoch(isom_embedding, data_loader, optim):
     epoch_losses = 0
     N = len(data_loader)
 
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
     for (_, batch) in enumerate(data_loader):
         if isinstance(batch, list) and len(batch) == 1:
             batch = batch[0]

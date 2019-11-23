@@ -2,7 +2,7 @@ import torch
 from copy import copy
 from itertools import product
 
-from .utils import pi
+from .utils import pi, device
 from ft_utils import fastTextWrapper
 
 METRICS = ['euclidean', 'angular', 'value_fn', '2dcurvesquaredist', 'ftJSD']
@@ -299,7 +299,7 @@ class fastTextJSDMetric(Metric):
     ''' Metric is the average JSD computed over all output classes
         of a fastText model.
     '''
-    def __init__(self, ft_model, epsilon=0.05):
+    def __init__(self, ft_model, epsilon=0.05, n_class=50000):
         super().__init__(ft_model.dim)
 
         assert issubclass(type(ft_model), fastTextWrapper)
@@ -308,14 +308,20 @@ class fastTextJSDMetric(Metric):
         assert isinstance(epsilon, float) and 0 <= epsilon < 1
         self.epsilon = epsilon
 
+        # jsd only calculated over the first n_class words in vocab
+        assert isinstance(n_class, int) and n_class > 0
+        self.n_class = n_class
+        self.word_freqs = torch.tensor(ft_model.word_freqs[:n_class]).float().to(device)
+        self.word_freqs /= self.word_freqs.sum()
+
     def _compute_dist(self, x, y):
-        ox = self.ft_model.get_out_dist(x)
-        oy = self.ft_model.get_out_dist(y)
+        ox = self.ft_model.get_out_dist(x)[:, :self.n_class]
+        oy = self.ft_model.get_out_dist(y)[:, :self.n_class]
 
         ox = (1 - self.epsilon) * (ox - 0.5) + 0.5
         oy = (1 - self.epsilon) * (oy - 0.5) + 0.5
 
-        return self.ft_model.jsd(ox, oy)
+        return self.ft_model.jsd(ox, oy, weights=self.word_freqs)
 
     def update_metric(self, batch):
         return {}
@@ -323,8 +329,8 @@ class fastTextJSDMetric(Metric):
 class DiscretefastTextJSDMetric(fastTextJSDMetric):
     ''' Same as supper but with vector lookup before compute dist
     '''
-    def __init__(self, ft_model, epsilon=0.001):
-        super().__init__(ft_model, epsilon)
+    def __init__(self, ft_model, epsilon=0.001, n_class=50000):
+        super().__init__(ft_model, epsilon=epsilon, n_class=n_class)
 
     def _validate_inputs(self, x, y):
         assert (isinstance(x, torch.Tensor) and

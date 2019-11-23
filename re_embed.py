@@ -15,11 +15,9 @@ from models.utils   import *
 from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader, TensorDataset
 
-device = 'cuda' if USE_CUDA else 'cpu'
-
 
 def main(lang, vec_dir='fasttext/', max_vocab=200000,
-         emb_space_type='spherical', emb_model_type='Discrete', metric_type='ftJSD',
+         emb_space_type='spherical', emb_model_type='Discrete', metric_type='ftJSD', n_class=50000,
          proportional=False, emb_dim=300, hidden_size=None, n_layers=1,
          lr=0.001, opt_cls='Adam', epochs=20, batch_size=128,
          model_dir=None, name=None, save_every=5, print_every=1, seed=None):
@@ -43,7 +41,7 @@ def main(lang, vec_dir='fasttext/', max_vocab=200000,
     logging.basicConfig(filename=os.path.join(save_dir, 're_embed_train.log'))
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
-
+    logger.info(device)
     train_args = copy(locals())
     logger.info('Train Arguments:')
     kmaxlen = max([len(k) for k in train_args.keys()])
@@ -72,14 +70,14 @@ def main(lang, vec_dir='fasttext/', max_vocab=200000,
         layers = [ft_mod.dim] + [hidden_size] * n_layers + [emb_dim]
         emb_model = MLPEmbMapping(layers)
 
-        metric = fastTextJSDMetric(ft_mod)
+        metric = fastTextJSDMetric(ft_mod, n_class=n_class)
 
         loader = DataLoader(TensorDataset(ft_mod.vectors.to(device)),
                         shuffle=True, batch_size=batch_size)
     elif emb_model_type == 'Discrete':
         emb_model = DiscreteEmbMapping(max_vocab, emb_dim)
 
-        metric = DiscretefastTextJSDMetric(ft_mod)
+        metric = DiscretefastTextJSDMetric(ft_mod, n_class=n_class)
 
         loader = DataLoader(TensorDataset(torch.arange(max_vocab).to(device)),
                             shuffle=True, batch_size=batch_size)
@@ -121,7 +119,7 @@ def parse_args():
     parser.add_argument('--lang', type=str, default=None)
     parser.add_argument('--max_vocab', help='how many vectors to translate to',
                         type=int, default=200000)
-    
+
     # Embedding Space Arguments
     parser.add_argument('--emb_space_type',
                         help='what type of embedding space to use',
@@ -131,6 +129,8 @@ def parse_args():
                         help='what type of metric to use on real data',
                         type=str, default=None,
                         choices=METRICS)
+    parser.add_argument('--n_class', help='how many classes to consider',
+                        type=int, default=50000)
     parser.add_argument('--emb_model_type',
                         help='what type of emb model to use',
                         type=str, default='Dicrete',
